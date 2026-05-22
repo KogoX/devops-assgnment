@@ -1,0 +1,13 @@
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# GCP credentials
+.gcp/
+*.json
+
+# OS / editor
+.DS_Store
+.vscode/
