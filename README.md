@@ -1,51 +1,71 @@
-```markdown
-# 🚀 GCP Distributed RPC Microservices Architecture
+# Alchemyst DevOps Internship Assignment — Distributed RPC Inference System
 
-## 📌 Overview
-This repository contains the infrastructure-as-code (Terraform) and application logic for a secure, multi-VM distributed RPC system deployed on Google Cloud Platform (GCP). 
+## Overview
 
-The architecture demonstrates secure VPC design, private subnet isolation, and microservice orchestration using an API Gateway pattern.
+This project implements a distributed inference system deployed across multiple Google Cloud Compute Engine VMs inside a private VPC network. The system consists of:
 
-## 🏗️ Architecture Design
+- A public-facing API Gateway (Node.js)
+- A Python worker (FastAPI)
+- A TypeScript worker (Express.js)
+- Private subnet communication using internal IPs
+- Infrastructure fully provisioned using Terraform
 
-The system is designed with a strict public/private separation. Only the API Gateway is exposed to the public internet, acting as the orchestrator. The worker nodes (Python and TypeScript) reside in a highly secure private subnet with no external IP addresses, ensuring they cannot be accessed directly from the outside world.
+The API Gateway receives HTTP JSON requests and dispatches them to backend workers via RPC-style HTTP calls over a private network.
 
-```mermaid
-graph TD
-    Client([🌐 Public Internet]) -->|POST /infer| Gateway[API Gateway - Node.js :3000]
-    
-    subgraph Private_VPC [GCP Private VPC Subnet - Internal IPs Only]
-        Gateway -->|HTTP GET :8000| PyWorker[Python Worker - FastAPI :8000]
-        Gateway -->|HTTP POST :9000| TsWorker[TS Worker - Express :9000]
-    end
+---
 
-```
+## Architecture
+       [Public Internet]
+               │
+               ▼ (Port 3000)
+    ┌───────────────────────────┐
+    │    API Gateway (Node.js)  │  <-- Public Subnet (External IP)
+    └──────────┬────────────────┘
+               │
+    [Private VPC Subnet / Internal IPs only]
+               │
+      ┌────────┴────────┐
+      ▼ (Port 8000)     ▼ (Port 9000)
+┌────────────┐    ┌─────────────┐
+│ Python VM  │    │ TS Worker VM│
+│ (FastAPI)  │    │ (Express)   │
+└────────────┘    └─────────────┘
 
-## 🛠️ Tech Stack
 
-* **Infrastructure:** Terraform, Google Cloud Platform (GCP), Cloud NAT, VPC Networks
-* **API Gateway:** Node.js, Express, Axios
-* **Workers:** Python (FastAPI, Uvicorn), TypeScript/Node (Express)
+---
 
-## 🚀 How It Works
+## Infrastructure (Terraform)
 
-1. A client sends a `POST` request containing a text payload to the public API Gateway.
-2. The Gateway securely orchestrates concurrent RPC (HTTP REST) calls to the internal IP addresses of the Python and TS Workers over the private VPC.
-3. The isolated workers process the payload and return their respective JSON responses.
-4. The Gateway aggregates the responses and returns a single, combined JSON payload back to the client.
+All infrastructure is fully reproducible using Terraform.
 
-### Example Request
+### Resources created:
+- VPC Network (`alchemyst-vpc`)
+- Private Subnet (`10.10.0.0/24`)
+- Firewall rules:
+  - Internal communication allowed within subnet
+  - Public access only to API Gateway
+- Compute Engine instances:
+  - api-gateway (public IP)
+  - python-worker (private IP only)
+  - ts-worker (private IP only)
+
+### Deployment
 
 ```bash
-curl -X POST http://<API_GATEWAY_EXTERNAL_IP>:3000/infer \
--H "Content-Type: application/json" \
--d '{"text":"hello alchemyst"}'
+cd terraform
+terraform init
+terraform apply
+To destroy:
 
-```
-
-### Example Response
-
-```json
+terraform destroy
+API Specification
+Endpoint
+POST /infer
+Request
+{
+  "text": "hello alchemyst"
+}
+Response
 {
   "gateway": "success",
   "python": {
@@ -55,19 +75,57 @@ curl -X POST http://<API_GATEWAY_EXTERNAL_IP>:3000/infer \
     "ts_worker": "TS processed: hello alchemyst"
   }
 }
+Example Usage
+curl -X POST http://<API_GATEWAY_EXTERNAL_IP>:3000/infer \
+-H "Content-Type: application/json" \
+-d '{"text":"hello alchemyst"}'
+Worker Design
+Python Worker
+Framework: FastAPI
+Port: 8000
+Function: Processes input text and returns response
+TypeScript Worker
+Framework: Express.js
+Port: 9000
+Function: Processes input text and returns response
+API Gateway
+Framework: Node.js + Express
+Port: 3000
+Role:
+Accepts HTTP requests
+Sends RPC calls to workers
+Aggregates responses
+Network Design
+Workers are deployed in a private subnet (10.10.0.0/24)
+Only API Gateway has a public IP
+Internal communication happens via private IPs
+No worker is exposed to the internet
+Security Considerations (Production Hardening)
 
-```
+If deployed in production, the following improvements are recommended:
 
-## 🛡️ Security & Production Hardening
+Replace open firewall rules with strict service-to-service IAM policies
+Use HTTPS (TLS termination at gateway)
+Add authentication (API keys / JWT)
+Restrict ingress IP ranges for API gateway
+Use centralized logging (Cloud Logging / ELK stack)
+Implement health checks and auto-restart policies
+Use secret manager for sensitive configuration
+Scaling Considerations (If Model is 100x Larger)
+Move from VM-based architecture to Kubernetes (GKE)
+Introduce message queues (Pub/Sub / Kafka) for async inference
+Implement batching for inference requests
+Use GPU-backed instances for workers
+Add caching layer (Redis)
+Implement horizontal autoscaling for workers
+Reproducibility
 
-While this architecture demonstrates core networking principles, moving this to a production-grade environment would involve the following improvements:
+This project is fully reproducible:
 
-* **Identity & Access Management (IAM):** Replace open internal firewall rules with strict Service Account-based access control. Workers should only accept traffic specifically originating from the Gateway's Service Account.
-* **TLS Termination & Load Balancing:** Place a Global External Application Load Balancer in front of the API Gateway to handle HTTPS certificates, SSL termination, and DDoS protection via Google Cloud Armor.
-* **Container Orchestration:** Transition the application deployments from raw VMs to Kubernetes (GKE) or Cloud Run for automated horizontal scaling, self-healing, and streamlined CI/CD deployments.
-* **Asynchronous Queuing:** For computationally heavy inference tasks (e.g., LLMs), synchronous HTTP RPC calls can cause timeouts. Introduce Google Cloud Pub/Sub or a Redis Message Broker so the Gateway can enqueue jobs asynchronously and return a task ID.
-* **Observability:** Integrate GCP Cloud Logging and Cloud Monitoring to track request latency between the Gateway and workers.
+Run Terraform
+SSH into instances
+Install dependencies
+Start services
+Test API endpoint
 
-```
-
-```
+No manual cloud console configuration is required beyond initial setup.
