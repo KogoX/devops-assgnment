@@ -37,7 +37,6 @@ resource "google_compute_instance" "api_gateway" {
     subnetwork = google_compute_subnetwork.private_subnet.id
 
     access_config {
-      # This gives PUBLIC IP
     }
   }
 
@@ -58,7 +57,6 @@ resource "google_compute_instance" "python_worker" {
   network_interface {
     network    = google_compute_network.vpc_network.id
     subnetwork = google_compute_subnetwork.private_subnet.id
-    # NO access_config = NO public IP
   }
 
   tags = ["worker"]
@@ -106,7 +104,7 @@ resource "google_compute_firewall" "allow_ssh" {
     ports    = ["22"]
   }
 
-  source_ranges = ["0.0.0.0/0"]  # You can restrict this later to your IP
+  source_ranges = ["0.0.0.0/0"]
 
   target_tags = ["gateway", "worker"]
 }
